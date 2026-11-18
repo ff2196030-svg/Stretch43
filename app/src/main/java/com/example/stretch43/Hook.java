@@ -27,23 +27,29 @@ public class Hook implements IXposedHookLoadPackage {
 
                     int orientation = (Integer) a[1];
                     Rect layer = (Rect) a[2];
+                    Rect disp = (Rect) a[3];
 
                     Object info = XposedHelpers.callMethod(p.thisObject, "getDisplayDeviceInfoLocked");
                     if (info == null) return;
-
-                    int type = XposedHelpers.getIntField(info, "type");
-                    if (type != 1) return;
+                    if (XposedHelpers.getIntField(info, "type") != 1) return;
 
                     int w = XposedHelpers.getIntField(info, "width");
                     int h = XposedHelpers.getIntField(info, "height");
-                    boolean rotated = (orientation == 1 || orientation == 3);
-                    int pw = rotated ? h : w;
-                    int ph = rotated ? w : h;
 
-                    if (layer.width() <= 0 || layer.height() <= 0) return;
+                    XposedBridge.log("Stretch43: orient=" + orientation + " layer=" + layer
+                            + " disp=" + disp + " panel=" + w + "x" + h);
 
-                    if ((long) layer.width() * ph != (long) layer.height() * pw) {
-                        a[3] = new Rect(0, 0, pw, ph);
+                    int[][] cands = { {w, h}, {h, w} };
+                    for (int[] c : cands) {
+                        boolean pillar = disp.left > 0 && disp.left + disp.right == c[0]
+                                && disp.top == 0 && disp.bottom == c[1];
+                        boolean letter = disp.top > 0 && disp.top + disp.bottom == c[1]
+                                && disp.left == 0 && disp.right == c[0];
+                        if (pillar || letter) {
+                            a[3] = new Rect(0, 0, c[0], c[1]);
+                            XposedBridge.log("Stretch43: stretched to " + c[0] + "x" + c[1]);
+                            return;
+                        }
                     }
                 } catch (Throwable t) {
                     XposedBridge.log("Stretch43: " + t);
